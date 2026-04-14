@@ -6,7 +6,7 @@ set -euo pipefail
 # https://github.com/Passion4ever/cc-skills
 # ============================================================================
 
-SK_VERSION="1.4.1"
+SK_VERSION="1.5.0"
 GITHUB_USER="Passion4ever"
 GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
@@ -66,7 +66,7 @@ get_sk_path() {
 
 # Fetch list of available skills from GitHub
 fetch_available_skills() {
-    curl -fsSL "${API_BASE}/contents/skills?ref=${GITHUB_BRANCH}" 2>/dev/null \
+    curl -fsSL --connect-timeout 10 --max-time 15 "${API_BASE}/contents/skills?ref=${GITHUB_BRANCH}" 2>/dev/null \
         | grep '"name"' \
         | sed 's/.*"name": *"//; s/".*//' \
         | sort
@@ -74,7 +74,29 @@ fetch_available_skills() {
 
 # Fetch remote SKILL.md content
 fetch_remote_skill_md() {
-    curl -fsSL "${RAW_BASE}/skills/${1}/SKILL.md" 2>/dev/null
+    curl -fsSL --connect-timeout 10 --max-time 15 "${RAW_BASE}/skills/${1}/SKILL.md" 2>/dev/null
+}
+
+# Fetch all remote versions at once via tarball (faster than per-skill curl)
+fetch_all_remote_versions() {
+    local tmpdir="$1"
+    local tmptar
+    tmptar=$(mktemp)
+    if ! curl -fsSL --connect-timeout 10 --max-time 30 "${API_BASE}/tarball/${GITHUB_BRANCH}" -o "$tmptar" 2>/dev/null; then
+        rm -f "$tmptar"
+        return 1
+    fi
+    local prefix
+    prefix=$(tar tf "$tmptar" 2>/dev/null | head -1 | cut -d'/' -f1)
+    # Extract all SKILL.md files and parse versions
+    tar tf "$tmptar" 2>/dev/null | grep '/skills/[^/]*/SKILL.md$' | while read -r entry; do
+        local skill_name
+        skill_name=$(echo "$entry" | sed "s|${prefix}/skills/||; s|/SKILL.md||")
+        local ver
+        ver=$(tar xf "$tmptar" -O "$entry" 2>/dev/null | parse_field version)
+        echo "${ver}" > "${tmpdir}/remote_${skill_name}"
+    done
+    rm -f "$tmptar"
 }
 
 # Ensure repo tarball is cached (one download, reused across installs)
@@ -252,14 +274,11 @@ cmd_list() {
         parse_field version "${dir}/SKILL.md" > "${tmpdir}/local_${name}"
     done
 
-    # Collect remote versions
-    local remote_list
-    remote_list=$(fetch_available_skills)
-    [[ -z "$remote_list" ]] && { err "无法获取，请检查网络"; exit 1; }
-    while IFS= read -r skill; do
-        [[ -z "$skill" ]] && continue
-        (fetch_remote_skill_md "$skill" || true) | parse_field version > "${tmpdir}/remote_${skill}"
-    done <<< "$remote_list"
+    # Collect remote versions (one tarball download instead of per-skill curl)
+    if ! fetch_all_remote_versions "$tmpdir"; then
+        err "无法获取远程版本，请检查网络"
+        exit 1
+    fi
 
     # Build skill lists: installed first, then uninstalled
     local installed="" uninstalled=""
