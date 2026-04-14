@@ -272,10 +272,11 @@ cmd_list() {
         fi
     done <<< "$all_names"
 
-    # Print table
+    # Print table using tab-separated columns
     out ""
-    printf "${BOLD}%-24s %-12s %-12s %s${NC}\n" "Skill" "Local" "Remote" "Status"
-    printf "%-24s %-12s %-12s %s\n" "────────────────────────" "────────────" "────────────" "──────────"
+    local fmt="  %-20s %-10s %-10s %s\n"
+    printf "${BOLD}${fmt}${NC}" "Skill" "Local" "Remote" "Status"
+    printf "  %-20s %-10s %-10s %s\n" "--------------------" "----------" "----------" "----------"
 
     local ordered="${installed}${uninstalled}"
     while IFS= read -r skill; do
@@ -289,22 +290,22 @@ cmd_list() {
         local status
 
         if [[ "$has_local" == false && "$has_remote" == true ]]; then
-            status="${CYAN}✦ 未安装${NC}"
+            status="${CYAN}not installed${NC}"
         elif [[ "$has_local" == true && "$has_remote" == false ]]; then
-            status="${RED}✗ 仓库已移除${NC}"
+            status="${RED}removed${NC}"
         elif [[ -n "$lv" && -n "$rv" && "$lv" == "$rv" ]]; then
-            status="${GREEN}✓ 最新${NC}"
+            status="${GREEN}up to date${NC}"
         elif [[ -n "$lv" && -n "$rv" ]]; then
-            status="${YELLOW}⬆ 可更新${NC}"
+            status="${YELLOW}update available${NC}"
         else
             # No version fields — compare by content hash
             local local_hash="" remote_hash=""
             [[ "$has_local" == true ]] && local_hash=$(md5_hash "$(cat "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null)")
             [[ "$has_remote" == true ]] && remote_hash=$(md5_hash "$(fetch_remote_skill_md "$skill")")
-            [[ "$local_hash" == "$remote_hash" ]] && status="${GREEN}✓ 最新${NC}" || status="${YELLOW}⬆ 可更新${NC}"
+            [[ "$local_hash" == "$remote_hash" ]] && status="${GREEN}up to date${NC}" || status="${YELLOW}update available${NC}"
         fi
 
-        printf "%-24s %-12s %-12s " "$skill" "${lv:-—}" "${rv:-—}"
+        printf "  %-20s %-10s %-10s " "$skill" "${lv:--}" "${rv:--}"
         out "$status"
     done <<< "$ordered"
     out ""
