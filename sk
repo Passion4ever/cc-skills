@@ -27,10 +27,10 @@ NC='\033[0m'
 # Helpers
 # ============================================================================
 
-info()  { echo -e "${CYAN}[sk]${NC} $*"; }
-ok()    { echo -e "${GREEN}[sk]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[sk]${NC} $*"; }
-err()   { echo -e "${RED}[sk]${NC} $*" >&2; }
+info()  { printf '%b\n' "${CYAN}[sk]${NC} $*"; }
+ok()    { printf '%b\n' "${GREEN}[sk]${NC} $*"; }
+warn()  { printf '%b\n' "${YELLOW}[sk]${NC} $*"; }
+err()   { printf '%b\n' "${RED}[sk]${NC} $*" 1>&2; }
 
 ensure_skills_dir() {
     mkdir -p "$SKILLS_DIR"
@@ -136,7 +136,7 @@ cmd_install() {
         while IFS= read -r skill; do
             [[ -z "$skill" ]] && continue
             if [[ -d "${SKILLS_DIR}/${skill}" ]]; then
-                echo -e "  ${DIM}${skill} — 已安装，跳过${NC}"
+                printf '%b\n' "  ${DIM}${skill} — 已安装，跳过${NC}"
             else
                 _install_one "$skill" && count=$((count + 1))
             fi
@@ -195,7 +195,7 @@ cmd_uninstall() {
             local name
             name=$(basename "$dir")
             rm -rf "$dir"
-            echo -e "  ${RED}✗${NC} ${name}"
+            printf '%b\n' "  ${RED}✗${NC} ${name}"
             count=$((count + 1))
         done
         if [[ $count -eq 0 ]]; then
@@ -271,7 +271,7 @@ _update_one() {
     remote_ver=$(parse_version_from_string "$remote_content")
 
     if [[ "$local_ver" == "$remote_ver" && -n "$local_ver" ]]; then
-        echo -e "  ${DIM}${skill_name} v${local_ver} — 已是最新${NC}"
+        printf '%b\n' "  ${DIM}${skill_name} v${local_ver} — 已是最新${NC}"
         return 1
     fi
 
@@ -295,14 +295,14 @@ cmd_list() {
         exit 1
     fi
 
-    echo -e "${BOLD}可用的 skills:${NC}"
+    printf '%b\n' "${BOLD}可用的 skills:${NC}"
     echo ""
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
         if [[ -d "${SKILLS_DIR}/${skill}" ]]; then
-            echo -e "  ${GREEN}●${NC} ${skill} ${DIM}(已安装)${NC}"
+            printf '%b\n' "  ${GREEN}●${NC} ${skill} ${DIM}(已安装)${NC}"
         else
-            echo -e "  ${CYAN}○${NC} ${skill}"
+            printf '%b\n' "  ${CYAN}○${NC} ${skill}"
         fi
     done <<< "$skills"
     echo ""
@@ -395,7 +395,7 @@ cmd_check() {
         fi
 
         printf "%-24s %-12s %-12s " "$skill" "$lv_display" "$rv_display"
-        echo -e "$status"
+        printf '%b\n' "$status"
     done <<< "$all_skills"
     echo ""
 }
@@ -427,13 +427,13 @@ cmd_self() {
                 err "未找到 sk 命令"
                 exit 1
             fi
-            echo -e "${YELLOW}即将卸载 sk (${sk_path})${NC}"
-            echo -e "${DIM}注意: 已安装的 skills 不会被删除${NC}"
+            printf '%b\n' "${YELLOW}即将卸载 sk (${sk_path})${NC}"
+            printf '%b\n' "${DIM}注意: 已安装的 skills 不会被删除${NC}"
             read -rp "确认卸载? [y/N] " confirm
             if [[ "$confirm" =~ ^[Yy]$ ]]; then
                 rm -f "$sk_path"
                 ok "sk 已卸载"
-                echo -e "${DIM}如需同时卸载所有 skills，手动运行: rm -rf ${SKILLS_DIR}${NC}"
+                printf '%b\n' "${DIM}如需同时卸载所有 skills，手动运行: rm -rf ${SKILLS_DIR}${NC}"
             else
                 info "取消"
             fi
@@ -445,29 +445,27 @@ cmd_self() {
 }
 
 cmd_help() {
-    cat <<HELP
-${BOLD}sk${NC} — Claude Code Skills Manager v${SK_VERSION}
-
-${BOLD}用法:${NC}
-  sk i <name>             安装单个 skill (install)
-  sk i -a                 安装所有 skills
-  sk uni <name>           卸载单个 skill (uninstall)
-  sk uni -a               卸载所有 skills
-  sk update <name>        更新单个 skill
-  sk update -a            更新所有已安装的 skills
-  sk list                 查看所有可用 skills
-  sk check                对比本地与远程版本
-  sk self update          更新 sk 本身
-  sk self uninstall       卸载 sk 本身
-  sk -h                   显示帮助
-  sk -v                   显示版本
-
-${BOLD}示例:${NC}
-  sk install smart-git    安装 smart-git skill
-  sk check                检查所有版本差异
-  sk update -a            一键更新所有
-
-HELP
+    printf '%b\n' "${BOLD}sk${NC} — Claude Code Skills Manager v${SK_VERSION}"
+    printf '%b\n' ""
+    printf '%b\n' "${BOLD}用法:${NC}"
+    printf '%b\n' "  sk i <name>             安装单个 skill (install)"
+    printf '%b\n' "  sk i -a                 安装所有 skills"
+    printf '%b\n' "  sk uni <name>           卸载单个 skill (uninstall)"
+    printf '%b\n' "  sk uni -a               卸载所有 skills"
+    printf '%b\n' "  sk update <name>        更新单个 skill"
+    printf '%b\n' "  sk update -a            更新所有已安装的 skills"
+    printf '%b\n' "  sk list                 查看所有可用 skills"
+    printf '%b\n' "  sk check                对比本地与远程版本"
+    printf '%b\n' "  sk self update          更新 sk 本身"
+    printf '%b\n' "  sk self uninstall       卸载 sk 本身"
+    printf '%b\n' "  sk -h                   显示帮助"
+    printf '%b\n' "  sk -v                   显示版本"
+    printf '%b\n' ""
+    printf '%b\n' "${BOLD}示例:${NC}"
+    printf '%b\n' "  sk install smart-git    安装 smart-git skill"
+    printf '%b\n' "  sk check                检查所有版本差异"
+    printf '%b\n' "  sk update -a            一键更新所有"
+    printf '%b\n' ""
 }
 
 cmd_version() {
