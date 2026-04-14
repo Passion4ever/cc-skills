@@ -1,6 +1,6 @@
 # cc-skills
 
-个人 Claude Code Skills 管理器，从 GitHub 仓库按需安装 skill 到 `~/.claude/skills/`。
+Claude Code Skills 管理器，从 GitHub 仓库按需安装 skill 到 `~/.claude/skills/`。
 
 ## 安装
 
@@ -48,3 +48,10 @@ description: ...
 ```
 
 推送到 GitHub 后，其他电脑 `sk i my-skill` 即可安装。
+
+## 致谢
+
+部分 skills 参考并修改自以下项目：
+
+- [anthropics/claude-code-skills](https://github.com/anthropics/claude-code-skills) — Claude 官方 Skills 库
+- [K-Dense/scientific-agent-skills](https://github.com/K-Dense/scientific-agent-skills) — 科学领域 Agent Skills 库
