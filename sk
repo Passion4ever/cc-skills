@@ -244,7 +244,9 @@ cmd_list() {
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
         if [[ -d "${SKILLS_DIR}/${skill}" ]]; then
-            out "  ${GREEN}●${NC} ${skill} ${DIM}(已安装)${NC}"
+            local ver
+            ver=$(parse_field version "${SKILLS_DIR}/${skill}/SKILL.md")
+            out "  ${GREEN}●${NC} ${skill} ${DIM}${ver:+v${ver} }(已安装)${NC}"
         else
             out "  ${CYAN}○${NC} ${skill}"
         fi
@@ -327,7 +329,9 @@ cmd_self() {
             sk_path=$(get_sk_path)
             if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$sk_path" 2>/dev/null; then
                 chmod +x "$sk_path"
-                ok "sk 已更新到最新版本"
+                local new_ver
+                new_ver=$(grep -m1 '^SK_VERSION=' "$sk_path" | sed 's/SK_VERSION="//' | sed 's/"//')
+                ok "sk 已更新到 ${BOLD}v${new_ver:-unknown}${NC}"
             else
                 err "更新失败，请检查网络"
                 exit 1
