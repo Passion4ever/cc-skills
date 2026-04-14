@@ -13,12 +13,12 @@ GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
 API_BASE="https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-DIM='\033[2m'
-NC='\033[0m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+CYAN=$'\033[0;36m'
+BOLD=$'\033[1m'
+DIM=$'\033[2m'
+NC=$'\033[0m'
 
 info() { printf '%b\n' "${CYAN}[sk]${NC} $*"; }
 ok()   { printf '%b\n' "${GREEN}[sk]${NC} $*"; }
