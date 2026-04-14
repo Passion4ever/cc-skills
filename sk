@@ -329,69 +329,81 @@ cmd_available() {
 cmd_check() {
     info "正在检查版本..."
 
-    # Collect all skill names (local + remote)
-    local all_skills=()
-    local -A local_versions remote_versions
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap "rm -rf '$tmpdir'" RETURN
 
-    # Local skills
+    # Collect local skills
     for dir in "${SKILLS_DIR}"/*/; do
         [[ -d "$dir" ]] || continue
         local name
         name=$(basename "$dir")
-        all_skills+=("$name")
-        local_versions["$name"]=$(parse_version "${dir}/SKILL.md" 2>/dev/null)
+        local ver
+        ver=$(parse_version "${dir}/SKILL.md" 2>/dev/null || true)
+        echo "${ver}" > "${tmpdir}/local_${name}"
     done
 
-    # Remote skills
+    # Collect remote skills
     local remote_list
     remote_list=$(fetch_available_skills)
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
-        # Add if not already tracked
-        if [[ -z "${local_versions[$skill]+x}" ]]; then
-            all_skills+=("$skill")
-        fi
         local content
         content=$(fetch_remote_skill_md "$skill")
-        remote_versions["$skill"]=$(parse_version_from_string "$content")
+        local ver
+        ver=$(parse_version_from_string "$content")
+        echo "${ver}" > "${tmpdir}/remote_${skill}"
     done <<< "$remote_list"
 
-    # Sort
-    IFS=$'\n' all_skills=($(sort -u <<< "${all_skills[*]}")); unset IFS
+    # Build sorted unique skill list
+    local all_skills
+    all_skills=$(
+        (ls "${tmpdir}"/local_* "${tmpdir}"/remote_* 2>/dev/null | xargs -I{} basename {} | sed 's/^local_//; s/^remote_//' | sort -u)
+    )
 
     # Print table
     echo ""
     printf "${BOLD}%-24s %-12s %-12s %s${NC}\n" "Skill" "Local" "Remote" "Status"
     printf "%-24s %-12s %-12s %s\n" "────────────────────────" "────────────" "────────────" "──────────"
 
-    for skill in "${all_skills[@]}"; do
-        local lv="${local_versions[$skill]:-}"
-        local rv="${remote_versions[$skill]:-}"
+    while IFS= read -r skill; do
+        [[ -z "$skill" ]] && continue
+        local lv="" rv=""
+        [[ -f "${tmpdir}/local_${skill}" ]] && lv=$(cat "${tmpdir}/local_${skill}")
+        [[ -f "${tmpdir}/remote_${skill}" ]] && rv=$(cat "${tmpdir}/remote_${skill}")
         local lv_display="${lv:-—}"
         local rv_display="${rv:-—}"
         local status
+        local has_local=false has_remote=false
+        [[ -f "${tmpdir}/local_${skill}" ]] && has_local=true
+        [[ -f "${tmpdir}/remote_${skill}" ]] && has_remote=true
 
-        if [[ -z "$lv" && -n "$rv" ]]; then
+        if [[ "$has_local" == false && "$has_remote" == true ]]; then
             status="${CYAN}✦ 未安装${NC}"
-        elif [[ -n "$lv" && -z "$rv" ]]; then
+        elif [[ "$has_local" == true && "$has_remote" == false ]]; then
             status="${RED}✗ 仓库已移除${NC}"
-        elif [[ "$lv" == "$rv" ]]; then
+        elif [[ -n "$lv" && -n "$rv" && "$lv" == "$rv" ]]; then
             status="${GREEN}✓ 最新${NC}"
         elif [[ -n "$lv" && -n "$rv" && "$lv" != "$rv" ]]; then
             status="${YELLOW}⬆ 可更新${NC}"
         else
-            # Both have no version — compare by content hash
-            local local_hash remote_content remote_hash
-            if command -v md5sum &>/dev/null; then
-                local_hash=$(md5sum "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null | cut -d' ' -f1 || echo "")
-            else
-                local_hash=$(md5 -q "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null || echo "")
+            # No version fields — compare by content hash
+            local local_hash="" remote_hash=""
+            if [[ "$has_local" == true ]]; then
+                if command -v md5sum &>/dev/null; then
+                    local_hash=$(md5sum "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null | cut -d' ' -f1 || echo "")
+                else
+                    local_hash=$(md5 -q "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null || echo "")
+                fi
             fi
-            remote_content=$(fetch_remote_skill_md "$skill")
-            if command -v md5sum &>/dev/null; then
-                remote_hash=$(echo "$remote_content" | md5sum | cut -d' ' -f1)
-            else
-                remote_hash=$(echo "$remote_content" | md5 -q)
+            if [[ "$has_remote" == true ]]; then
+                local remote_content
+                remote_content=$(fetch_remote_skill_md "$skill")
+                if command -v md5sum &>/dev/null; then
+                    remote_hash=$(echo "$remote_content" | md5sum | cut -d' ' -f1)
+                else
+                    remote_hash=$(echo "$remote_content" | md5 -q)
+                fi
             fi
             if [[ "$local_hash" == "$remote_hash" ]]; then
                 status="${GREEN}✓ 最新${NC}"
@@ -402,7 +414,7 @@ cmd_check() {
 
         printf "%-24s %-12s %-12s " "$skill" "$lv_display" "$rv_display"
         echo -e "$status"
-    done
+    done <<< "$all_skills"
     echo ""
 }
 
