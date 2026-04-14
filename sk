@@ -327,12 +327,17 @@ cmd_self() {
             info "正在更新 sk..."
             local sk_path
             sk_path=$(get_sk_path)
-            if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$sk_path" 2>/dev/null; then
-                chmod +x "$sk_path"
+            local tmp
+            tmp=$(mktemp)
+            if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$tmp" 2>/dev/null; then
+                chmod +x "$tmp"
+                mv -f "$tmp" "$sk_path"
                 local new_ver
                 new_ver=$(grep -m1 '^SK_VERSION=' "$sk_path" | sed 's/SK_VERSION="//' | sed 's/"//')
                 ok "sk 已更新到 ${BOLD}v${new_ver:-unknown}${NC}"
+                exit 0
             else
+                rm -f "$tmp"
                 err "更新失败，请检查网络"
                 exit 1
             fi
