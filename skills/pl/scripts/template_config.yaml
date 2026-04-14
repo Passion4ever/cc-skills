@@ -1,0 +1,75 @@
+# configs/example.yaml
+#
+# ⚠️ 以下为模板示例，所有超参数值须根据具体任务调整，不要直接照搬
+
+# ── 全局变量（通过 ${} 在下方引用）──
+project_name: my-project          # 替换为实际项目名
+run_name: experiment_v1           # 替换为实际实验名
+seed_everything: 42               # 默认 42 / 123 / 2026
+
+model:
+  class_path: src.models.xxx.MyModel
+  init_args:
+    hidden_dim: 256               # 示例值，根据模型规模调整
+    n_layers: 8                   # 示例值，根据模型规模调整
+    lr: 5.0e-4                    # 示例值，常用范围 1e-5 ~ 1e-3
+    weight_decay: 0.01            # 示例值，常用范围 0.0 ~ 0.1
+    warmup_steps: 200             # 示例值，根据数据量调整
+    # pretrain_ckpt: null         # 微调时指定预训练 checkpoint 路径
+    # ... 其他模型和优化器超参数
+
+data:
+  class_path: src.data.xxx.MyDataModule
+  init_args:
+    # 数据路径、划分方式等根据具体任务定义，例如:
+    # data_dir: data/processed
+    # train_csv: data/train.csv
+    # split_ratio: [0.8, 0.1, 0.1]
+    batch_size: 128               # 根据 GPU 显存调整
+    num_workers: 4                # 通常设为 CPU 核数的一半
+    # ... 其他数据相关参数
+
+trainer:
+  max_epochs: 300               # 根据任务调整，配合 EarlyStopping 使用
+  accelerator: gpu
+  devices: auto                    # 自动检测，通过 CUDA_VISIBLE_DEVICES 控制用哪些卡
+  precision: bf16-mixed            # 优先 bf16-mixed，不支持时退回 16-mixed
+  gradient_clip_val: 1.0
+  log_every_n_steps: 10
+  # ── 验证频率（二选一）──
+  # 按 epoch 验证（小数据集、训练快的任务）:
+  check_val_every_n_epoch: 1
+  # 按 step 验证（大数据集、一个 epoch 很长的任务）:
+  # val_check_interval: 500       # 每 500 step 验证一次
+  # check_val_every_n_epoch: null  # 按 step 时需设为 null
+  default_root_dir: runs/${project_name}/${run_name}
+
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: null             # 自动放在 default_root_dir 下
+        filename: "best"
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: true
+        # 按 step 存 ckpt 时启用:
+        # every_n_train_steps: 500  # 与 val_check_interval 保持一致
+
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: val/loss
+        patience: 30              # 根据任务调整
+        mode: min
+
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: step
+
+  logger:
+    - class_path: lightning.pytorch.loggers.WandbLogger
+      init_args:
+        project: ${project_name}
+        name: ${run_name}
+        save_dir: runs/${project_name}/${run_name}
+        log_model: false

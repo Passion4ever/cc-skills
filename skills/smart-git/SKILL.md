@@ -1,6 +1,7 @@
 ---
 name: smart-git
 version: 1.1.0
+author: Passion4ever
 description: |
   Intelligent Git operations with auto-generated conventional commit messages.
   TRIGGER when: user asks to commit, push, pull, merge, rebase, or any git operation;
