@@ -1,9 +1,14 @@
 ---
 name: smart-git
-version: 1.0.0
+version: 1.1.0
 description: |
-  Perform intelligent Git operations including commits, branch management, history viewing, and conflict resolution with auto-generated conventional commit messages.
-  Use when user mentions /git, /commit, /push, /pull, or any version control related operations.
+  Intelligent Git operations with auto-generated conventional commit messages.
+  TRIGGER when: user asks to commit, push, pull, merge, rebase, or any git operation;
+  user says "提交", "推送", "拉取", "合并", "commit", "push", "pull";
+  user says "提交一下", "推上去", "帮我提交", "提交推送", "commit and push";
+  user mentions /git, /commit, /push, /pull, /smart-git;
+  user asks to check git status, view history, resolve conflicts, create/switch branches;
+  or any task that involves running git commands.
 ---
 
 # Smart Git
