@@ -124,7 +124,7 @@ for item in items:
 cmd_install() {
     local target="${1:-}"
 
-    if [[ "$target" == "--all" ]]; then
+    if [[ "$target" == "--all" || "$target" == "-a" ]]; then
         info "正在获取所有可用 skills..."
         local skills
         skills=$(fetch_available_skills)
@@ -146,7 +146,7 @@ cmd_install() {
     fi
 
     if [[ -z "$target" ]]; then
-        err "用法: sk install <skill-name> | --all"
+        err "用法: sk install <skill-name> | -a"
         exit 1
     fi
 
@@ -188,7 +188,7 @@ _install_one() {
 cmd_uninstall() {
     local target="${1:-}"
 
-    if [[ "$target" == "--all" ]]; then
+    if [[ "$target" == "--all" || "$target" == "-a" ]]; then
         local count=0
         for dir in "${SKILLS_DIR}"/*/; do
             [[ -d "$dir" ]] || continue
@@ -207,7 +207,7 @@ cmd_uninstall() {
     fi
 
     if [[ -z "$target" ]]; then
-        err "用法: sk uninstall <skill-name> | --all"
+        err "用法: sk uninstall <skill-name> | -a"
         exit 1
     fi
 
@@ -223,7 +223,7 @@ cmd_uninstall() {
 cmd_update() {
     local target="${1:-}"
 
-    if [[ "$target" == "--all" ]]; then
+    if [[ "$target" == "--all" || "$target" == "-a" ]]; then
         local count=0
         local updated=0
         for dir in "${SKILLS_DIR}"/*/; do
@@ -242,7 +242,7 @@ cmd_update() {
     fi
 
     if [[ -z "$target" ]]; then
-        err "用法: sk update <skill-name> | --all"
+        err "用法: sk update <skill-name> | -a"
         exit 1
     fi
 
@@ -284,26 +284,8 @@ _update_one() {
     return 0
 }
 
-cmd_list() {
-    local count=0
-    echo -e "${BOLD}已安装的 skills:${NC}"
-    echo ""
-    for dir in "${SKILLS_DIR}"/*/; do
-        [[ -d "$dir" ]] || continue
-        local name version
-        name=$(basename "$dir")
-        version=$(parse_version "${dir}/SKILL.md" 2>/dev/null || true)
-        echo -e "  ${GREEN}●${NC} ${name}${version:+ ${DIM}v${version}${NC}}"
-        count=$((count + 1))
-    done
-    if [[ $count -eq 0 ]]; then
-        echo -e "  ${DIM}(无)${NC}"
-    fi
-    echo ""
-    echo -e "${DIM}共 ${count} 个${NC}"
-}
 
-cmd_available() {
+cmd_list() {
     info "正在从仓库获取..."
     local skills
     skills=$(fetch_available_skills)
@@ -418,25 +400,48 @@ cmd_check() {
     echo ""
 }
 
-cmd_self_uninstall() {
-    local sk_path
-    sk_path=$(command -v sk 2>/dev/null || echo "")
+cmd_self() {
+    local action="${1:-}"
 
-    if [[ -z "$sk_path" ]]; then
-        err "未找到 sk 命令"
-        exit 1
-    fi
-
-    echo -e "${YELLOW}即将卸载 sk (${sk_path})${NC}"
-    echo -e "${DIM}注意: 已安装的 skills 不会被删除${NC}"
-    read -rp "确认卸载? [y/N] " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        rm -f "$sk_path"
-        ok "sk 已卸载"
-        echo -e "${DIM}如需同时卸载所有 skills，手动运行: rm -rf ${SKILLS_DIR}${NC}"
-    else
-        info "取消"
-    fi
+    case "$action" in
+        update)
+            info "正在更新 sk..."
+            local sk_path
+            sk_path=$(command -v sk 2>/dev/null || echo "")
+            if [[ -z "$sk_path" ]]; then
+                err "未找到 sk 命令"
+                exit 1
+            fi
+            if curl -fsSL "${RAW_BASE}/sk" -o "$sk_path" 2>/dev/null; then
+                chmod +x "$sk_path"
+                ok "sk 已更新到最新版本"
+            else
+                err "更新失败，请检查网络"
+                exit 1
+            fi
+            ;;
+        uninstall)
+            local sk_path
+            sk_path=$(command -v sk 2>/dev/null || echo "")
+            if [[ -z "$sk_path" ]]; then
+                err "未找到 sk 命令"
+                exit 1
+            fi
+            echo -e "${YELLOW}即将卸载 sk (${sk_path})${NC}"
+            echo -e "${DIM}注意: 已安装的 skills 不会被删除${NC}"
+            read -rp "确认卸载? [y/N] " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                rm -f "$sk_path"
+                ok "sk 已卸载"
+                echo -e "${DIM}如需同时卸载所有 skills，手动运行: rm -rf ${SKILLS_DIR}${NC}"
+            else
+                info "取消"
+            fi
+            ;;
+        *)
+            err "用法: sk self <update|uninstall>"
+            ;;
+    esac
 }
 
 cmd_help() {
@@ -444,23 +449,23 @@ cmd_help() {
 ${BOLD}sk${NC} — Claude Code Skills Manager v${SK_VERSION}
 
 ${BOLD}用法:${NC}
-  sk install <name>       安装单个 skill
-  sk install --all        安装所有 skills
-  sk uninstall <name>     卸载单个 skill
-  sk uninstall --all      卸载所有 skills
+  sk i <name>             安装单个 skill (install)
+  sk i -a                 安装所有 skills
+  sk uni <name>           卸载单个 skill (uninstall)
+  sk uni -a               卸载所有 skills
   sk update <name>        更新单个 skill
-  sk update --all         更新所有已安装的 skills
-  sk list                 查看已安装的 skills
-  sk available            查看仓库中所有可用 skills
+  sk update -a            更新所有已安装的 skills
+  sk list                 查看所有可用 skills
   sk check                对比本地与远程版本
-  sk self-uninstall       卸载 sk 本身
-  sk help                 显示帮助
-  sk version              显示版本
+  sk self update          更新 sk 本身
+  sk self uninstall       卸载 sk 本身
+  sk -h                   显示帮助
+  sk -v                   显示版本
 
 ${BOLD}示例:${NC}
   sk install smart-git    安装 smart-git skill
   sk check                检查所有版本差异
-  sk update --all         一键更新所有
+  sk update -a            一键更新所有
 
 HELP
 }
@@ -478,13 +483,12 @@ main() {
     shift 2>/dev/null || true
 
     case "$cmd" in
-        install)        cmd_install "$@" ;;
-        uninstall)      cmd_uninstall "$@" ;;
+        install|i)      cmd_install "$@" ;;
+        uninstall|uni)  cmd_uninstall "$@" ;;
         update)         cmd_update "$@" ;;
         list|ls)        cmd_list ;;
-        available|avail) cmd_available ;;
         check)          cmd_check ;;
-        self-uninstall) cmd_self_uninstall ;;
+        self)           cmd_self "$@" ;;
         help|--help|-h) cmd_help ;;
         version|--version|-v) cmd_version ;;
         *)
