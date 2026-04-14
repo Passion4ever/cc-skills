@@ -20,9 +20,9 @@ BOLD=$'\033[1m'
 DIM=$'\033[2m'
 NC=$'\033[0m'
 
-info() { printf '%b\n' "${CYAN}[sk]${NC} $*"; }
-ok()   { printf '%b\n' "${GREEN}[sk]${NC} $*"; }
-err()  { printf '%b\n' "${RED}[sk]${NC} $*" 1>&2; }
+info() { printf '%s\n' "${CYAN}[sk]${NC} $*"; }
+ok()   { printf '%s\n' "${GREEN}[sk]${NC} $*"; }
+err()  { printf '%s\n' "${RED}[sk]${NC} $*" 1>&2; }
 
 # Determine install directory
 INSTALL_DIR=""
@@ -51,21 +51,21 @@ fi
 
 # Check if install dir is in PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
-    printf '%b\n' ""
-    printf '%b\n' "${DIM}提示: ${INSTALL_DIR} 不在 PATH 中，请添加:${NC}"
-    printf '%b\n' ""
-    printf '%b\n' "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-    printf '%b\n' ""
-    printf '%b\n' "${DIM}将上面这行加入 ~/.bashrc 或 ~/.zshrc${NC}"
+    printf '%s\n' ""
+    printf '%s\n' "${DIM}提示: ${INSTALL_DIR} 不在 PATH 中，请添加:${NC}"
+    printf '%s\n' ""
+    printf '%s\n' "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    printf '%s\n' ""
+    printf '%s\n' "${DIM}将上面这行加入 ~/.bashrc 或 ~/.zshrc${NC}"
 fi
 
 # Ensure ~/.claude/skills exists
 mkdir -p "$HOME/.claude/skills"
 
-printf '%b\n' ""
-printf '%b\n' "${BOLD}快速开始:${NC}"
-printf '%b\n' "  sk list               查看所有可用 skills"
-printf '%b\n' "  sk i <name>           安装单个 skill"
-printf '%b\n' "  sk i -a               安装所有 skills"
-printf '%b\n' "  sk -h                 查看完整帮助"
-printf '%b\n' ""
+printf '%s\n' ""
+printf '%s\n' "${BOLD}快速开始:${NC}"
+printf '%s\n' "  sk list               查看所有可用 skills"
+printf '%s\n' "  sk i <name>           安装单个 skill"
+printf '%s\n' "  sk i -a               安装所有 skills"
+printf '%s\n' "  sk -h                 查看完整帮助"
+printf '%s\n' ""
