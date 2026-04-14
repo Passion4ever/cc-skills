@@ -6,7 +6,7 @@ set -euo pipefail
 # https://github.com/Passion4ever/cc-skills
 # ============================================================================
 
-SK_VERSION="1.5.1"
+SK_VERSION="1.5.2"
 GITHUB_USER="Passion4ever"
 GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
@@ -33,15 +33,14 @@ ok()    { out "${GREEN}[sk]${NC} $*"; }
 warn()  { out "${YELLOW}[sk]${NC} $*"; }
 err()   { out "${RED}[sk]${NC} $*" 1>&2; }
 
-# Parse a field from SKILL.md frontmatter (stdin or file)
+# Parse a field from SKILL.md frontmatter (file only, no stdin)
 parse_field() {
     local field="$1"
     shift
     if [[ $# -gt 0 && -f "$1" ]]; then
         grep -m1 "^${field}:" "$1" 2>/dev/null | sed "s/^${field}:[[:space:]]*//" | sed 's/[[:space:]]*$//' || true
-    else
-        grep -m1 "^${field}:" 2>/dev/null | sed "s/^${field}:[[:space:]]*//" | sed 's/[[:space:]]*$//' || true
     fi
+    # No file or file not found → return empty (never read from stdin)
 }
 
 # Cross-platform md5 hash of a string
