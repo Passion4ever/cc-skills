@@ -6,7 +6,7 @@ set -euo pipefail
 # https://github.com/Passion4ever/cc-skills
 # ============================================================================
 
-SK_VERSION="1.0.0"
+SK_VERSION="1.3.0"
 GITHUB_USER="Passion4ever"
 GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
