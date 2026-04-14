@@ -6,7 +6,7 @@ set -euo pipefail
 # https://github.com/Passion4ever/cc-skills
 # ============================================================================
 
-SK_VERSION="1.3.0"
+SK_VERSION="1.3.1"
 GITHUB_USER="Passion4ever"
 GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
@@ -290,19 +290,19 @@ cmd_list() {
         local status
 
         if [[ "$has_local" == false && "$has_remote" == true ]]; then
-            status="${CYAN}not installed${NC}"
+            status="${CYAN}✦ 未安装${NC}"
         elif [[ "$has_local" == true && "$has_remote" == false ]]; then
-            status="${RED}removed${NC}"
+            status="${RED}✗ 已移除${NC}"
         elif [[ -n "$lv" && -n "$rv" && "$lv" == "$rv" ]]; then
-            status="${GREEN}up to date${NC}"
+            status="${GREEN}✓ 最新${NC}"
         elif [[ -n "$lv" && -n "$rv" ]]; then
-            status="${YELLOW}update available${NC}"
+            status="${YELLOW}⬆ 可更新${NC}"
         else
             # No version fields — compare by content hash
             local local_hash="" remote_hash=""
             [[ "$has_local" == true ]] && local_hash=$(md5_hash "$(cat "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null)")
             [[ "$has_remote" == true ]] && remote_hash=$(md5_hash "$(fetch_remote_skill_md "$skill")")
-            [[ "$local_hash" == "$remote_hash" ]] && status="${GREEN}up to date${NC}" || status="${YELLOW}update available${NC}"
+            [[ "$local_hash" == "$remote_hash" ]] && status="${GREEN}✓ 最新${NC}" || status="${YELLOW}⬆ 可更新${NC}"
         fi
 
         printf "  %-20s %-10s %-10s " "$skill" "${lv:--}" "${rv:--}"
