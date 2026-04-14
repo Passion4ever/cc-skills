@@ -27,38 +27,41 @@ NC=$'\033[0m'
 # Helpers
 # ============================================================================
 
-info()  { printf '%s\n' "${CYAN}[sk]${NC} $*"; }
-ok()    { printf '%s\n' "${GREEN}[sk]${NC} $*"; }
-warn()  { printf '%s\n' "${YELLOW}[sk]${NC} $*"; }
-err()   { printf '%s\n' "${RED}[sk]${NC} $*" 1>&2; }
+out()   { printf '%s\n' "$*"; }
+info()  { out "${CYAN}[sk]${NC} $*"; }
+ok()    { out "${GREEN}[sk]${NC} $*"; }
+warn()  { out "${YELLOW}[sk]${NC} $*"; }
+err()   { out "${RED}[sk]${NC} $*" 1>&2; }
 
-ensure_skills_dir() {
-    mkdir -p "$SKILLS_DIR"
-}
-
-# Get version from a SKILL.md file
-parse_version() {
-    local file="$1"
-    if [[ -f "$file" ]]; then
-        grep -m1 '^version:' "$file" 2>/dev/null | sed 's/^version:[[:space:]]*//' | sed 's/[[:space:]]*$//' || true
+# Parse a field from SKILL.md frontmatter (stdin or file)
+parse_field() {
+    local field="$1"
+    shift
+    if [[ $# -gt 0 && -f "$1" ]]; then
+        grep -m1 "^${field}:" "$1" 2>/dev/null | sed "s/^${field}:[[:space:]]*//" | sed 's/[[:space:]]*$//' || true
     else
-        echo ""
+        grep -m1 "^${field}:" 2>/dev/null | sed "s/^${field}:[[:space:]]*//" | sed 's/[[:space:]]*$//' || true
     fi
 }
 
-# Get version from raw content string
-parse_version_from_string() {
-    echo "$1" | grep -m1 '^version:' 2>/dev/null | sed 's/^version:[[:space:]]*//' | sed 's/[[:space:]]*$//' || true
+# Cross-platform md5 hash of a string
+md5_hash() {
+    if command -v md5sum &>/dev/null; then
+        echo "$1" | md5sum | cut -d' ' -f1
+    else
+        echo "$1" | md5 -q
+    fi
 }
 
-# Get name from a SKILL.md frontmatter
-parse_name() {
-    local file="$1"
-    if [[ -f "$file" ]]; then
-        grep -m1 '^name:' "$file" 2>/dev/null | sed 's/^name:[[:space:]]*//' | sed 's/[[:space:]]*$//' || true
-    else
-        echo ""
+# Get the installed path of sk
+get_sk_path() {
+    local p
+    p=$(command -v sk 2>/dev/null || echo "")
+    if [[ -z "$p" ]]; then
+        err "未找到 sk 命令"
+        exit 1
     fi
+    echo "$p"
 }
 
 # Fetch list of available skills from GitHub
@@ -71,31 +74,19 @@ fetch_available_skills() {
 
 # Fetch remote SKILL.md content
 fetch_remote_skill_md() {
-    local skill_name="$1"
-    curl -fsSL "${RAW_BASE}/skills/${skill_name}/SKILL.md" 2>/dev/null
-}
-
-# List all files in a remote skill directory
-fetch_remote_skill_files() {
-    local skill_name="$1"
-    curl -fsSL "${API_BASE}/contents/skills/${skill_name}?ref=${GITHUB_BRANCH}" 2>/dev/null \
-        | grep '"path"' \
-        | sed 's/.*"path": *"//; s/".*//'
+    curl -fsSL "${RAW_BASE}/skills/${1}/SKILL.md" 2>/dev/null
 }
 
 # Download a single file from the repo
 download_file() {
-    local remote_path="$1"
-    local local_path="$2"
+    local remote_path="$1" local_path="$2"
     mkdir -p "$(dirname "$local_path")"
     curl -fsSL "${RAW_BASE}/${remote_path}" -o "$local_path" 2>/dev/null
 }
 
-# Recursively download a directory from GitHub
+# Recursively download a skill directory from GitHub
 download_skill_dir() {
-    local skill_name="$1"
-    local remote_dir="$2"
-    local local_base="$3"
+    local skill_name="$1" remote_dir="$2" local_base="$3"
 
     local contents
     contents=$(curl -fsSL "${API_BASE}/contents/${remote_dir}?ref=${GITHUB_BRANCH}" 2>/dev/null) || return 1
@@ -109,8 +100,7 @@ for item in items:
     print(item['type'], item['path'])
 " 2>/dev/null | while read -r item_type item_path; do
         if [[ "$item_type" == "file" ]]; then
-            local rel_path="${item_path#skills/${skill_name}/}"
-            download_file "$item_path" "${local_base}/${rel_path}"
+            download_file "$item_path" "${local_base}/${item_path#skills/${skill_name}/}"
         elif [[ "$item_type" == "dir" ]]; then
             download_skill_dir "$skill_name" "$item_path" "$local_base"
         fi
@@ -128,15 +118,12 @@ cmd_install() {
         info "正在获取所有可用 skills..."
         local skills
         skills=$(fetch_available_skills)
-        if [[ -z "$skills" ]]; then
-            err "无法获取 skill 列表，请检查网络"
-            exit 1
-        fi
+        [[ -z "$skills" ]] && { err "无法获取 skill 列表，请检查网络"; exit 1; }
         local count=0
         while IFS= read -r skill; do
             [[ -z "$skill" ]] && continue
             if [[ -d "${SKILLS_DIR}/${skill}" ]]; then
-                printf '%s\n' "  ${DIM}${skill} — 已安装，跳过${NC}"
+                out "  ${DIM}${skill} — 已安装，跳过${NC}"
             else
                 _install_one "$skill" && count=$((count + 1))
             fi
@@ -145,10 +132,7 @@ cmd_install() {
         return
     fi
 
-    if [[ -z "$target" ]]; then
-        err "用法: sk install <skill-name> | -a"
-        exit 1
-    fi
+    [[ -z "$target" ]] && { err "用法: sk install <skill-name> | -a"; exit 1; }
 
     if [[ -d "${SKILLS_DIR}/${target}" ]]; then
         warn "${target} 已安装，如需更新请用 sk update ${target}"
@@ -160,13 +144,10 @@ cmd_install() {
 
 _install_one() {
     local skill_name="$1"
-    ensure_skills_dir
+    local dest="${SKILLS_DIR}/${skill_name}"
+    mkdir -p "$SKILLS_DIR" "$dest"
 
     info "正在安装 ${BOLD}${skill_name}${NC}..."
-
-    # Download the entire skill directory
-    local dest="${SKILLS_DIR}/${skill_name}"
-    mkdir -p "$dest"
 
     if ! download_skill_dir "$skill_name" "skills/${skill_name}" "$dest"; then
         err "安装失败: ${skill_name}（可能不存在）"
@@ -181,7 +162,7 @@ _install_one() {
     fi
 
     local version
-    version=$(parse_version "${dest}/SKILL.md")
+    version=$(parse_field version "${dest}/SKILL.md")
     ok "已安装 ${BOLD}${skill_name}${NC} ${version:+v${version}}"
 }
 
@@ -195,26 +176,15 @@ cmd_uninstall() {
             local name
             name=$(basename "$dir")
             rm -rf "$dir"
-            printf '%s\n' "  ${RED}✗${NC} ${name}"
+            out "  ${RED}✗${NC} ${name}"
             count=$((count + 1))
         done
-        if [[ $count -eq 0 ]]; then
-            info "没有已安装的 skill"
-        else
-            ok "已卸载 ${count} 个 skill"
-        fi
+        [[ $count -eq 0 ]] && info "没有已安装的 skill" || ok "已卸载 ${count} 个 skill"
         return
     fi
 
-    if [[ -z "$target" ]]; then
-        err "用法: sk uninstall <skill-name> | -a"
-        exit 1
-    fi
-
-    if [[ ! -d "${SKILLS_DIR}/${target}" ]]; then
-        err "${target} 未安装"
-        exit 1
-    fi
+    [[ -z "$target" ]] && { err "用法: sk uninstall <skill-name> | -a"; exit 1; }
+    [[ ! -d "${SKILLS_DIR}/${target}" ]] && { err "${target} 未安装"; exit 1; }
 
     rm -rf "${SKILLS_DIR}/${target}"
     ok "已卸载 ${BOLD}${target}${NC}"
@@ -224,88 +194,62 @@ cmd_update() {
     local target="${1:-}"
 
     if [[ "$target" == "--all" || "$target" == "-a" ]]; then
-        local count=0
-        local updated=0
+        local count=0 updated=0
         for dir in "${SKILLS_DIR}"/*/; do
             [[ -d "$dir" ]] || continue
-            local name
-            name=$(basename "$dir")
             count=$((count + 1))
-            _update_one "$name" && updated=$((updated + 1))
+            _update_one "$(basename "$dir")" && updated=$((updated + 1))
         done
-        if [[ $count -eq 0 ]]; then
-            info "没有已安装的 skill"
-        else
-            ok "检查了 ${count} 个 skill，更新了 ${updated} 个"
-        fi
+        [[ $count -eq 0 ]] && info "没有已安装的 skill" || ok "检查了 ${count} 个 skill，更新了 ${updated} 个"
         return
     fi
 
-    if [[ -z "$target" ]]; then
-        err "用法: sk update <skill-name> | -a"
-        exit 1
-    fi
-
-    if [[ ! -d "${SKILLS_DIR}/${target}" ]]; then
-        err "${target} 未安装，请先 sk install ${target}"
-        exit 1
-    fi
+    [[ -z "$target" ]] && { err "用法: sk update <skill-name> | -a"; exit 1; }
+    [[ ! -d "${SKILLS_DIR}/${target}" ]] && { err "${target} 未安装，请先 sk install ${target}"; exit 1; }
 
     _update_one "$target"
 }
 
 _update_one() {
     local skill_name="$1"
-    local local_file="${SKILLS_DIR}/${skill_name}/SKILL.md"
-    local local_ver remote_ver
+    local local_ver remote_ver remote_content
 
-    local_ver=$(parse_version "$local_file")
+    local_ver=$(parse_field version "${SKILLS_DIR}/${skill_name}/SKILL.md")
 
-    local remote_content
     remote_content=$(fetch_remote_skill_md "$skill_name")
-    if [[ -z "$remote_content" ]]; then
-        warn "${skill_name}: 仓库中未找到，跳过"
+    [[ -z "$remote_content" ]] && { warn "${skill_name}: 仓库中未找到，跳过"; return 1; }
+
+    remote_ver=$(echo "$remote_content" | parse_field version)
+
+    if [[ -n "$local_ver" && "$local_ver" == "$remote_ver" ]]; then
+        out "  ${DIM}${skill_name} v${local_ver} — 已是最新${NC}"
         return 1
     fi
 
-    remote_ver=$(parse_version_from_string "$remote_content")
-
-    if [[ "$local_ver" == "$remote_ver" && -n "$local_ver" ]]; then
-        printf '%s\n' "  ${DIM}${skill_name} v${local_ver} — 已是最新${NC}"
-        return 1
-    fi
-
-    # Re-download entire skill
     rm -rf "${SKILLS_DIR}/${skill_name}"
     mkdir -p "${SKILLS_DIR}/${skill_name}"
     download_skill_dir "$skill_name" "skills/${skill_name}" "${SKILLS_DIR}/${skill_name}"
 
     ok "${skill_name}: ${local_ver:-?} → ${remote_ver:-?}"
-    return 0
 }
-
 
 cmd_list() {
     info "正在从仓库获取..."
     local skills
     skills=$(fetch_available_skills)
+    [[ -z "$skills" ]] && { err "无法获取，请检查网络"; exit 1; }
 
-    if [[ -z "$skills" ]]; then
-        err "无法获取，请检查网络"
-        exit 1
-    fi
-
-    printf '%s\n' "${BOLD}可用的 skills:${NC}"
-    echo ""
+    out "${BOLD}可用的 skills:${NC}"
+    out ""
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
         if [[ -d "${SKILLS_DIR}/${skill}" ]]; then
-            printf '%s\n' "  ${GREEN}●${NC} ${skill} ${DIM}(已安装)${NC}"
+            out "  ${GREEN}●${NC} ${skill} ${DIM}(已安装)${NC}"
         else
-            printf '%s\n' "  ${CYAN}○${NC} ${skill}"
+            out "  ${CYAN}○${NC} ${skill}"
         fi
     done <<< "$skills"
-    echo ""
+    out ""
 }
 
 cmd_check() {
@@ -315,36 +259,29 @@ cmd_check() {
     tmpdir=$(mktemp -d)
     trap "rm -rf '$tmpdir'" RETURN
 
-    # Collect local skills
+    # Collect local versions
     for dir in "${SKILLS_DIR}"/*/; do
         [[ -d "$dir" ]] || continue
         local name
         name=$(basename "$dir")
-        local ver
-        ver=$(parse_version "${dir}/SKILL.md" 2>/dev/null || true)
-        echo "${ver}" > "${tmpdir}/local_${name}"
+        parse_field version "${dir}/SKILL.md" > "${tmpdir}/local_${name}"
     done
 
-    # Collect remote skills
+    # Collect remote versions
     local remote_list
     remote_list=$(fetch_available_skills)
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
-        local content
-        content=$(fetch_remote_skill_md "$skill")
-        local ver
-        ver=$(parse_version_from_string "$content")
-        echo "${ver}" > "${tmpdir}/remote_${skill}"
+        fetch_remote_skill_md "$skill" | parse_field version > "${tmpdir}/remote_${skill}"
     done <<< "$remote_list"
 
     # Build sorted unique skill list
     local all_skills
-    all_skills=$(
-        (ls "${tmpdir}"/local_* "${tmpdir}"/remote_* 2>/dev/null | xargs -I{} basename {} | sed 's/^local_//; s/^remote_//' | sort -u)
-    )
+    all_skills=$(ls "${tmpdir}"/local_* "${tmpdir}"/remote_* 2>/dev/null \
+        | xargs -I{} basename {} | sed 's/^local_//; s/^remote_//' | sort -u)
 
     # Print table
-    echo ""
+    out ""
     printf "${BOLD}%-24s %-12s %-12s %s${NC}\n" "Skill" "Local" "Remote" "Status"
     printf "%-24s %-12s %-12s %s\n" "────────────────────────" "────────────" "────────────" "──────────"
 
@@ -353,12 +290,10 @@ cmd_check() {
         local lv="" rv=""
         [[ -f "${tmpdir}/local_${skill}" ]] && lv=$(cat "${tmpdir}/local_${skill}")
         [[ -f "${tmpdir}/remote_${skill}" ]] && rv=$(cat "${tmpdir}/remote_${skill}")
-        local lv_display="${lv:-—}"
-        local rv_display="${rv:-—}"
-        local status
         local has_local=false has_remote=false
         [[ -f "${tmpdir}/local_${skill}" ]] && has_local=true
         [[ -f "${tmpdir}/remote_${skill}" ]] && has_remote=true
+        local status
 
         if [[ "$has_local" == false && "$has_remote" == true ]]; then
             status="${CYAN}✦ 未安装${NC}"
@@ -366,38 +301,20 @@ cmd_check() {
             status="${RED}✗ 仓库已移除${NC}"
         elif [[ -n "$lv" && -n "$rv" && "$lv" == "$rv" ]]; then
             status="${GREEN}✓ 最新${NC}"
-        elif [[ -n "$lv" && -n "$rv" && "$lv" != "$rv" ]]; then
+        elif [[ -n "$lv" && -n "$rv" ]]; then
             status="${YELLOW}⬆ 可更新${NC}"
         else
             # No version fields — compare by content hash
             local local_hash="" remote_hash=""
-            if [[ "$has_local" == true ]]; then
-                if command -v md5sum &>/dev/null; then
-                    local_hash=$(md5sum "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null | cut -d' ' -f1 || echo "")
-                else
-                    local_hash=$(md5 -q "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null || echo "")
-                fi
-            fi
-            if [[ "$has_remote" == true ]]; then
-                local remote_content
-                remote_content=$(fetch_remote_skill_md "$skill")
-                if command -v md5sum &>/dev/null; then
-                    remote_hash=$(echo "$remote_content" | md5sum | cut -d' ' -f1)
-                else
-                    remote_hash=$(echo "$remote_content" | md5 -q)
-                fi
-            fi
-            if [[ "$local_hash" == "$remote_hash" ]]; then
-                status="${GREEN}✓ 最新${NC}"
-            else
-                status="${YELLOW}⬆ 可更新${NC}"
-            fi
+            [[ "$has_local" == true ]] && local_hash=$(md5_hash "$(cat "${SKILLS_DIR}/${skill}/SKILL.md" 2>/dev/null)")
+            [[ "$has_remote" == true ]] && remote_hash=$(md5_hash "$(fetch_remote_skill_md "$skill")")
+            [[ "$local_hash" == "$remote_hash" ]] && status="${GREEN}✓ 最新${NC}" || status="${YELLOW}⬆ 可更新${NC}"
         fi
 
-        printf "%-24s %-12s %-12s " "$skill" "$lv_display" "$rv_display"
-        printf '%s\n' "$status"
+        printf "%-24s %-12s %-12s " "$skill" "${lv:-—}" "${rv:-—}"
+        out "$status"
     done <<< "$all_skills"
-    echo ""
+    out ""
 }
 
 cmd_self() {
@@ -407,11 +324,7 @@ cmd_self() {
         update)
             info "正在更新 sk..."
             local sk_path
-            sk_path=$(command -v sk 2>/dev/null || echo "")
-            if [[ -z "$sk_path" ]]; then
-                err "未找到 sk 命令"
-                exit 1
-            fi
+            sk_path=$(get_sk_path)
             if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$sk_path" 2>/dev/null; then
                 chmod +x "$sk_path"
                 ok "sk 已更新到最新版本"
@@ -422,18 +335,14 @@ cmd_self() {
             ;;
         uninstall)
             local sk_path
-            sk_path=$(command -v sk 2>/dev/null || echo "")
-            if [[ -z "$sk_path" ]]; then
-                err "未找到 sk 命令"
-                exit 1
-            fi
-            printf '%s\n' "${YELLOW}即将卸载 sk (${sk_path})${NC}"
-            printf '%s\n' "${DIM}注意: 已安装的 skills 不会被删除${NC}"
+            sk_path=$(get_sk_path)
+            out "${YELLOW}即将卸载 sk (${sk_path})${NC}"
+            out "${DIM}注意: 已安装的 skills 不会被删除${NC}"
             read -rp "确认卸载? [y/N] " confirm
             if [[ "$confirm" =~ ^[Yy]$ ]]; then
                 rm -f "$sk_path"
                 ok "sk 已卸载"
-                printf '%s\n' "${DIM}如需同时卸载所有 skills，手动运行: rm -rf ${SKILLS_DIR}${NC}"
+                out "${DIM}如需同时卸载所有 skills，手动运行: rm -rf ${SKILLS_DIR}${NC}"
             else
                 info "取消"
             fi
@@ -445,27 +354,27 @@ cmd_self() {
 }
 
 cmd_help() {
-    printf '%s\n' "${BOLD}sk${NC} — Claude Code Skills Manager v${SK_VERSION}"
-    printf '%s\n' ""
-    printf '%s\n' "${BOLD}用法:${NC}"
-    printf '%s\n' "  sk i <name>             安装单个 skill (install)"
-    printf '%s\n' "  sk i -a                 安装所有 skills"
-    printf '%s\n' "  sk uni <name>           卸载单个 skill (uninstall)"
-    printf '%s\n' "  sk uni -a               卸载所有 skills"
-    printf '%s\n' "  sk update <name>        更新单个 skill"
-    printf '%s\n' "  sk update -a            更新所有已安装的 skills"
-    printf '%s\n' "  sk list                 查看所有可用 skills"
-    printf '%s\n' "  sk check                对比本地与远程版本"
-    printf '%s\n' "  sk self update          更新 sk 本身"
-    printf '%s\n' "  sk self uninstall       卸载 sk 本身"
-    printf '%s\n' "  sk -h                   显示帮助"
-    printf '%s\n' "  sk -v                   显示版本"
-    printf '%s\n' ""
-    printf '%s\n' "${BOLD}示例:${NC}"
-    printf '%s\n' "  sk install smart-git    安装 smart-git skill"
-    printf '%s\n' "  sk check                检查所有版本差异"
-    printf '%s\n' "  sk update -a            一键更新所有"
-    printf '%s\n' ""
+    out "${BOLD}sk${NC} — Claude Code Skills Manager v${SK_VERSION}"
+    out ""
+    out "${BOLD}用法:${NC}"
+    out "  sk i <name>             安装单个 skill (install)"
+    out "  sk i -a                 安装所有 skills"
+    out "  sk uni <name>           卸载单个 skill (uninstall)"
+    out "  sk uni -a               卸载所有 skills"
+    out "  sk update <name>        更新单个 skill"
+    out "  sk update -a            更新所有已安装的 skills"
+    out "  sk list                 查看所有可用 skills"
+    out "  sk check                对比本地与远程版本"
+    out "  sk self update          更新 sk 本身"
+    out "  sk self uninstall       卸载 sk 本身"
+    out "  sk -h                   显示帮助"
+    out "  sk -v                   显示版本"
+    out ""
+    out "${BOLD}示例:${NC}"
+    out "  sk install smart-git    安装 smart-git skill"
+    out "  sk check                检查所有版本差异"
+    out "  sk update -a            一键更新所有"
+    out ""
 }
 
 cmd_version() {
