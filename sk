@@ -254,7 +254,7 @@ cmd_list() {
     [[ -z "$remote_list" ]] && { err "无法获取，请检查网络"; exit 1; }
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
-        fetch_remote_skill_md "$skill" | parse_field version > "${tmpdir}/remote_${skill}"
+        (fetch_remote_skill_md "$skill" || true) | parse_field version > "${tmpdir}/remote_${skill}"
     done <<< "$remote_list"
 
     # Build skill lists: installed first, then uninstalled
