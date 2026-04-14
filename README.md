@@ -11,18 +11,13 @@ curl -fsSL https://raw.githubusercontent.com/Passion4ever/cc-skills/main/install
 ## 使用
 
 ```bash
-sk list                   # 查看所有可用 skills
-sk install <name>         # 安装单个 skill
-sk install -a             # 安装所有 skills
-sk uninstall <name>       # 卸载单个 skill
-sk uninstall -a           # 卸载所有 skills
-sk check                  # 对比本地与远程版本
+sk list                   # 查看所有 skills 及版本状态
+sk i <name>               # 安装单个 skill
+sk i -a                   # 安装所有 skills
+sk uni <name>             # 卸载单个 skill
+sk uni -a                 # 卸载所有 skills
 sk update <name>          # 更新单个 skill
 sk update -a              # 一键更新所有
-```
-
-## 卸载 sk
-
-```bash
-sk self-uninstall
+sk self update            # 更新 sk 本身
+sk self uninstall         # 卸载 sk 本身
 ```

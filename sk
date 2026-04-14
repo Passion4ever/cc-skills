@@ -235,27 +235,6 @@ _update_one() {
 
 cmd_list() {
     info "正在从仓库获取..."
-    local skills
-    skills=$(fetch_available_skills)
-    [[ -z "$skills" ]] && { err "无法获取，请检查网络"; exit 1; }
-
-    out "${BOLD}可用的 skills:${NC}"
-    out ""
-    while IFS= read -r skill; do
-        [[ -z "$skill" ]] && continue
-        if [[ -d "${SKILLS_DIR}/${skill}" ]]; then
-            local ver
-            ver=$(parse_field version "${SKILLS_DIR}/${skill}/SKILL.md")
-            out "  ${GREEN}●${NC} ${skill} ${DIM}${ver:+v${ver} }(已安装)${NC}"
-        else
-            out "  ${CYAN}○${NC} ${skill}"
-        fi
-    done <<< "$skills"
-    out ""
-}
-
-cmd_check() {
-    info "正在检查版本..."
 
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -272,21 +251,33 @@ cmd_check() {
     # Collect remote versions
     local remote_list
     remote_list=$(fetch_available_skills)
+    [[ -z "$remote_list" ]] && { err "无法获取，请检查网络"; exit 1; }
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
         fetch_remote_skill_md "$skill" | parse_field version > "${tmpdir}/remote_${skill}"
     done <<< "$remote_list"
 
-    # Build sorted unique skill list
-    local all_skills
-    all_skills=$(ls "${tmpdir}"/local_* "${tmpdir}"/remote_* 2>/dev/null \
+    # Build skill lists: installed first, then uninstalled
+    local installed="" uninstalled=""
+    local all_names
+    all_names=$(ls "${tmpdir}"/local_* "${tmpdir}"/remote_* 2>/dev/null \
         | xargs -I{} basename {} | sed 's/^local_//; s/^remote_//' | sort -u)
+
+    while IFS= read -r skill; do
+        [[ -z "$skill" ]] && continue
+        if [[ -f "${tmpdir}/local_${skill}" ]]; then
+            installed="${installed}${skill}"$'\n'
+        else
+            uninstalled="${uninstalled}${skill}"$'\n'
+        fi
+    done <<< "$all_names"
 
     # Print table
     out ""
     printf "${BOLD}%-24s %-12s %-12s %s${NC}\n" "Skill" "Local" "Remote" "Status"
     printf "%-24s %-12s %-12s %s\n" "────────────────────────" "────────────" "────────────" "──────────"
 
+    local ordered="${installed}${uninstalled}"
     while IFS= read -r skill; do
         [[ -z "$skill" ]] && continue
         local lv="" rv=""
@@ -315,7 +306,7 @@ cmd_check() {
 
         printf "%-24s %-12s %-12s " "$skill" "${lv:-—}" "${rv:-—}"
         out "$status"
-    done <<< "$all_skills"
+    done <<< "$ordered"
     out ""
 }
 
@@ -372,8 +363,7 @@ cmd_help() {
     out "  sk uni -a               卸载所有 skills"
     out "  sk update <name>        更新单个 skill"
     out "  sk update -a            更新所有已安装的 skills"
-    out "  sk list                 查看所有可用 skills"
-    out "  sk check                对比本地与远程版本"
+    out "  sk list                 查看所有 skills 及版本状态"
     out "  sk self update          更新 sk 本身"
     out "  sk self uninstall       卸载 sk 本身"
     out "  sk -h                   显示帮助"
@@ -381,7 +371,7 @@ cmd_help() {
     out ""
     out "${BOLD}示例:${NC}"
     out "  sk install smart-git    安装 smart-git skill"
-    out "  sk check                检查所有版本差异"
+    out "  sk list                 查看版本状态"
     out "  sk update -a            一键更新所有"
     out ""
 }
@@ -403,7 +393,6 @@ main() {
         uninstall|uni)  cmd_uninstall "$@" ;;
         update)         cmd_update "$@" ;;
         list|ls)        cmd_list ;;
-        check)          cmd_check ;;
         self)           cmd_self "$@" ;;
         help|--help|-h) cmd_help ;;
         version|--version|-v) cmd_version ;;
