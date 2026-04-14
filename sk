@@ -6,7 +6,7 @@ set -euo pipefail
 # https://github.com/Passion4ever/cc-skills
 # ============================================================================
 
-SK_VERSION="1.4.0"
+SK_VERSION="1.4.1"
 GITHUB_USER="Passion4ever"
 GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
@@ -320,17 +320,22 @@ cmd_self() {
 
     case "$action" in
         update)
-            info "正在更新 sk..."
+            info "正在检查更新..."
             local sk_path
             sk_path=$(get_sk_path)
             local tmp
             tmp=$(mktemp)
             if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$tmp" 2>/dev/null; then
+                local remote_ver
+                remote_ver=$(grep -m1 '^SK_VERSION=' "$tmp" | sed 's/SK_VERSION="//' | sed 's/"//')
+                if [[ "$remote_ver" == "$SK_VERSION" ]]; then
+                    rm -f "$tmp"
+                    ok "sk v${SK_VERSION} 已是最新"
+                    exit 0
+                fi
                 chmod +x "$tmp"
                 mv -f "$tmp" "$sk_path"
-                local new_ver
-                new_ver=$(grep -m1 '^SK_VERSION=' "$sk_path" | sed 's/SK_VERSION="//' | sed 's/"//')
-                ok "sk 已更新到 ${BOLD}v${new_ver:-unknown}${NC}"
+                ok "sk 已更新: v${SK_VERSION} → v${remote_ver:-unknown}"
                 exit 0
             else
                 rm -f "$tmp"
