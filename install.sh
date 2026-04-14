@@ -11,7 +11,7 @@ set -euo pipefail
 GITHUB_USER="Passion4ever"
 GITHUB_REPO="cc-skills"
 GITHUB_BRANCH="main"
-RAW_BASE="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}"
+API_BASE="https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -20,9 +20,9 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
-info() { echo -e "${CYAN}[sk]${NC} $*"; }
-ok()   { echo -e "${GREEN}[sk]${NC} $*"; }
-err()  { echo -e "${RED}[sk]${NC} $*" >&2; }
+info() { printf '%b\n' "${CYAN}[sk]${NC} $*"; }
+ok()   { printf '%b\n' "${GREEN}[sk]${NC} $*"; }
+err()  { printf '%b\n' "${RED}[sk]${NC} $*" 1>&2; }
 
 # Determine install directory
 INSTALL_DIR=""
@@ -41,7 +41,7 @@ fi
 INSTALL_PATH="${INSTALL_DIR}/sk"
 
 info "正在下载 sk..."
-if curl -fsSL "${RAW_BASE}/sk" -o "$INSTALL_PATH"; then
+if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$INSTALL_PATH"; then
     chmod +x "$INSTALL_PATH"
     ok "sk 已安装到 ${BOLD}${INSTALL_PATH}${NC}"
 else
@@ -51,21 +51,21 @@ fi
 
 # Check if install dir is in PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
-    echo ""
-    echo -e "${DIM}提示: ${INSTALL_DIR} 不在 PATH 中，请添加:${NC}"
-    echo ""
-    echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-    echo ""
-    echo -e "${DIM}将上面这行加入 ~/.bashrc 或 ~/.zshrc${NC}"
+    printf '%b\n' ""
+    printf '%b\n' "${DIM}提示: ${INSTALL_DIR} 不在 PATH 中，请添加:${NC}"
+    printf '%b\n' ""
+    printf '%b\n' "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    printf '%b\n' ""
+    printf '%b\n' "${DIM}将上面这行加入 ~/.bashrc 或 ~/.zshrc${NC}"
 fi
 
 # Ensure ~/.claude/skills exists
 mkdir -p "$HOME/.claude/skills"
 
-echo ""
-echo -e "${BOLD}快速开始:${NC}"
-echo "  sk available          查看所有可用 skills"
-echo "  sk install <name>     安装单个 skill"
-echo "  sk install --all      安装所有 skills"
-echo "  sk help               查看完整帮助"
-echo ""
+printf '%b\n' ""
+printf '%b\n' "${BOLD}快速开始:${NC}"
+printf '%b\n' "  sk list               查看所有可用 skills"
+printf '%b\n' "  sk i <name>           安装单个 skill"
+printf '%b\n' "  sk i -a               安装所有 skills"
+printf '%b\n' "  sk -h                 查看完整帮助"
+printf '%b\n' ""

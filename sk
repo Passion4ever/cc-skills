@@ -412,7 +412,7 @@ cmd_self() {
                 err "未找到 sk 命令"
                 exit 1
             fi
-            if curl -fsSL "${RAW_BASE}/sk" -o "$sk_path" 2>/dev/null; then
+            if curl -fsSL -H "Accept: application/vnd.github.v3.raw" "${API_BASE}/contents/sk?ref=${GITHUB_BRANCH}" -o "$sk_path" 2>/dev/null; then
                 chmod +x "$sk_path"
                 ok "sk 已更新到最新版本"
             else
