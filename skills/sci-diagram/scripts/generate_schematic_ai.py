@@ -144,6 +144,9 @@ class GrsAIProvider:
             for line in response.iter_lines(decode_unicode=True):
                 if not line:
                     continue
+                # 处理 SSE 格式: "data: {...}"
+                if line.startswith("data: "):
+                    line = line[6:]
                 try:
                     data = json.loads(line)
                     if data.get("status") == "succeeded" and data.get("results"):
